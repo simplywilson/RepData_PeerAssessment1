@@ -5,6 +5,7 @@ output:
     keep_md: true
 ---
 
+# Reproducible Research: Peer Assessment 1
 
 ## Loading and preprocessing the data
 
@@ -12,154 +13,170 @@ Unzip and load raw data file
 
 
 ```r
-activityCsv <- unzip(zipfile = "repdata-data-activity.zip")
-rawActivityData <- read.csv(activityCsv,as.is=T)
+csvFile <- unzip(zipfile = "repdata-data-activity.zip")
+
+activityRaw <- read.csv(csvFile,as.is=TRUE)
 ```
 
-Convert date column into POSIXlt type and raw data into data.table
+Convert date column into date and data into data.table
 
 
 ```r
 require(data.table,quietly=TRUE)
+```
 
-activity.df <- data.frame(date=as.Date(rawActivityData$date),
-                          interval=as.numeric(rawActivityData$interval),
-                          steps=rawActivityData$steps)
-activityData <- data.table(activity.df)
+```
+## Warning: package 'data.table' was built under R version 3.1.1
+```
+
+```
+## data.table 1.9.2  For help type: help("data.table")
+```
+
+```r
+activity <- data.table(date=as.Date(activityRaw$date), steps=activityRaw$steps, 
+                       interval=activityRaw$interval)
 ```
 
 ## What is mean total number of steps taken per day?
 
+Create a histogram of the total number of steps taken each day
+
 
 ```r
-totalStepsPerDay = activityData[,sum(steps),keyby="date"]
-setnames(totalStepsPerDay,"V1","totalSteps")
+totalStepsPerDay <- activity[, sum(steps), by=date]
 
-hist(totalStepsPerDay$totalSteps,breaks=8,
-     main="Total Steps per Day",xlab="Steps")
+hist(totalStepsPerDay$V1, main = "Total Number of Steps per Day", xlab = "Steps")
 ```
 
 ![plot of chunk unnamed-chunk-3](figure/unnamed-chunk-3.png) 
 
-```r
-meanSteps <- mean(totalStepsPerDay$totalSteps,na.rm=T)
+Calculate the mean and median total number of steps taken per day
 
-medianSteps <- median(totalStepsPerDay$totalSteps,na.rm=T)
+
+```r
+totalStepsPerDay_mean <- mean(totalStepsPerDay$V1, na.rm = TRUE)
+
+totalStepsPerDay_median <- median(totalStepsPerDay$V1, na.rm = TRUE)
 ```
 
-The mean number of steps per day is 10766.
+The mean total number of steps taken per day: 10766
 
-The median number per day is 10765.
-
+The median total number of steps taken per day: 10765
 
 ## What is the average daily activity pattern?
 
+Make a time series plot of the 5-minute interval and the average number of steps taken, averaged across all days
+
 
 ```r
-#calculate the mean for each interval
-meanStepsPerInterval = activityData[,mean(steps,na.rm=T),keyby="interval"]
-setnames(meanStepsPerInterval,"V1","meanSteps")
-x <- meanStepsPerInterval$interval
-y <- meanStepsPerInterval$meanSteps
-plot(x=x,y=y,type = "l", col = 1,main="Average Daily Activity Pattern"
-     ,ylab="Mean Steps",xlab="Daily Interval")
+avgStepsPerInterval <- activity[, mean(steps, na.rm = TRUE), by=interval]
+
+plot(x = avgStepsPerInterval$interval, y = avgStepsPerInterval$V1, type = "l", main = "Average Daily Activity Pattern", ylab = "Average Number of Steps", xlab = "Intervals")
 ```
 
-![plot of chunk unnamed-chunk-4](figure/unnamed-chunk-4.png) 
+![plot of chunk unnamed-chunk-5](figure/unnamed-chunk-5.png) 
+
+Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
 
 ```r
-maxInterval <- x[which(y==max(y))]
+topInterval <- avgStepsPerInterval[order(V1, decreasing = T)]$interval[1]
 ```
 
-The interval with the maximum mean number of steps is 835
-
+The 5-minute interval which contains the maximum number of steps is 835
 
 ## Imputing missing values
 
-
-```r
-totalMissing <- sum(is.na(activityData$steps))
-```
-
-The total missing observations is 2304.
+Calculate and report the total number of missing values in the dataset
 
 
 ```r
-totalMissing <- sum(is.na(activityData$steps))
-
-# find the missing values
-missing <- which(is.na(activity.df$steps))
-#replace all missing values with the mean from that time interval
-for (i in missing)
-  activity.df$steps[i] <- 
-  meanStepsPerInterval[interval==activity.df$interval[i]]$meanSteps
-
-newActivityData <- data.table(activity.df)
+totalMissingValues <- sum(is.na(activity))
 ```
 
-The new activity data table with imputed values has the same form but with no missing values.
+The total number of missing values is 2304
+
+Average steps per interval will be used as strategy for filling in all of the missing steps in the dataset
 
 
 ```r
-newActivityData
+activity$modSteps <- activity$steps
+
+for (index in 1:nrow(activity))
+{
+    if (is.na(activity$modSteps[index]))
+    {
+        activity$modSteps[index] <- avgStepsPerInterval[interval == activity$interval[index]]$V1
+    }
+}
 ```
 
-```
-##              date interval   steps
-##     1: 2012-10-01        0 1.71698
-##     2: 2012-10-01        5 0.33962
-##     3: 2012-10-01       10 0.13208
-##     4: 2012-10-01       15 0.15094
-##     5: 2012-10-01       20 0.07547
-##    ---                            
-## 17564: 2012-11-30     2335 4.69811
-## 17565: 2012-11-30     2340 3.30189
-## 17566: 2012-11-30     2345 0.64151
-## 17567: 2012-11-30     2350 0.22642
-## 17568: 2012-11-30     2355 1.07547
-```
+Create a histogram of the total number of steps taken each day with missing values filled in
+
 
 ```r
-newTotalStepsPerDay = newActivityData[,sum(steps),keyby="date"]
-setnames(newTotalStepsPerDay,"V1","totalSteps")
+totalModStepsPerDay <- activity[, sum(modSteps), by=date]
 
-hist(newTotalStepsPerDay$totalSteps,breaks=8,
-     main="Total Steps per Day",xlab="Steps")
+hist(totalModStepsPerDay$V1, main = "Total Number of Steps per Day", xlab = "Steps")
 ```
 
-![plot of chunk unnamed-chunk-7](figure/unnamed-chunk-7.png) 
+![plot of chunk unnamed-chunk-9](figure/unnamed-chunk-9.png) 
+
+Calculate the mean and median total number of steps taken per day with missing values filled in
+
 
 ```r
-meanSteps <- mean(newTotalStepsPerDay$totalSteps,na.rm=T)
+totalModStepsPerDay_mean <- mean(totalModStepsPerDay$V1)
 
-medianSteps <- median(newTotalStepsPerDay$totalSteps,na.rm=T)
+totalModStepsPerDay_median <- median(totalModStepsPerDay$V1)
 ```
 
-The mean number of steps per day is 10766.
+The mean total number of steps taken per day with missing values filled in: 10766
 
-The median number per day is 10766.
+The median total number of steps taken per day with missing values filled in: 10766
 
-The mean and median have not changed appreciably. This makes sense since mean was used to impute missing values. Since the mean and median were essentially the same in the original data, the impact of using the mean to impute values does not alter the distribution, in this case.
+The resulting values of from the the estimates from the first part of the assignment is minimal. The histogram, mean, and median have no significant change as a result of imputing missing data.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+Create a new factor variable in the dataset with two levels - "weekday" and "weekend" indicating whether a given date is a weekday or weekend day.
+
+
+```r
+require(plyr,quietly=TRUE)
+```
+
+```
+## Warning: package 'plyr' was built under R version 3.1.1
+```
+
+```r
+days <- weekdays(x = activity$date)
+datetype <- factor(days == "Saturday" | days == "Sunday")
+activity$dateType <- revalue(datetype, c("TRUE"="Weekend", "FALSE"="Weekday"))
+```
+
+Make a panel plot containing a time series plot of the 5-minute interval and the average number of steps taken, averaged across all weekday days or weekend days.
 
 
 ```r
 require(lattice,quietly=TRUE)
-weekend <- c("Saturday","Sunday")
-newActivityData$dayOfWeek <- weekdays(newActivityData$date)
-newActivityData$weekPeriod <- as.factor(
-  ifelse(newActivityData$dayOfWeek %in% c("Saturday","Sunday"),"Weekend","Weekday"))
+```
 
-meanStepsPerInterval = newActivityData[,mean(steps),keyby="interval,weekPeriod"]
-setnames(meanStepsPerInterval,"V1","steps")
+```
+## Warning: package 'lattice' was built under R version 3.1.1
+```
 
-xyplot(steps ~ interval | weekPeriod, data = meanStepsPerInterval, layout = c(1, 2),
-       type="l",ylab="Number of steps",xlab="Interval",
+```r
+avgStepsPerIntervalDateType <- activity[, mean(steps, na.rm = TRUE), by="interval,dateType"]
+
+xyplot(V1 ~ interval | dateType, data = avgStepsPerIntervalDateType, layout = c(1, 2),
+       type="l", main = "Average Daily Activity Patterns between\nWeekdays and Weekends", 
+       ylab="Average Number of Steps",xlab="Interval",
        scales = list(x = list(at = seq(from = 0, to = 2000, by = 500))))
 ```
 
-![plot of chunk unnamed-chunk-8](figure/unnamed-chunk-8.png) 
+![plot of chunk unnamed-chunk-12](figure/unnamed-chunk-12.png) 
 
- 
-Weekdays and weekends have very different patterns of activity. During the weekday, it appears that a large amount of walking occurs early, before 900. Could this be getting ready for work? It likely is not walking to work since there is no associated walk after work. The weekend has many more periods of greater than 50 steps. The low number of steps during the week as compared to the same period on the weekend may indicate a desk job.
+There seems to be a different pattern between weekdays and weekends. For weekday, there seem to be a high spike in the number of steps at the around the 800 interval mark and hover in the 100 steps mark between the 1250 and 1800 interval. On the other hand, during the weekend, the number of steps are hovering around the 150 during the 800 to 2000 intervals.
